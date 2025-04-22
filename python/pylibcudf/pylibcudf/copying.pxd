@@ -38,6 +38,12 @@ cpdef Table gather(
     out_of_bounds_policy bounds_policy
 )
 
+cpdef void multiget(
+    Table source_table,
+    list keys,
+    out_of_bounds_policy bounds_policy
+)
+
 cpdef Table scatter(TableOrListOfScalars source, Column scatter_map, Table target_table)
 
 cpdef ColumnOrTable empty_like(ColumnOrTable input)

@@ -36,6 +36,9 @@ from .table cimport Table
 from .utils cimport _as_vector
 
 
+from pyarrow import lib as pa             
+
+
 __all__ = [
     "MaskAllocationPolicy",
     "OutOfBoundsPolicy",
@@ -46,6 +49,7 @@ __all__ = [
     "copy_range_in_place",
     "empty_like",
     "gather",
+    "multiget",
     "get_element",
     "scatter",
     "shift",
@@ -91,6 +95,53 @@ cpdef Table gather(
         )
 
     return Table.from_libcudf(move(c_result))
+
+
+cpdef void multiget(
+    Table source_table,
+    list keys,             
+    out_of_bounds_policy bounds_policy
+):
+    """
+    GPU‐accelerated multi‐get by gathering rows whose values in
+    `column_idx` match any key in the Python `keys` list.
+
+    Parameters
+    ----------
+    source_table : Table
+        The input GPU table.
+    column_idx : int
+        Index of the column to match against.
+    keys : list[int]
+        List of integer keys to select.
+    bounds_policy : OutOfBoundsPolicy
+        Policy for out‐of‐bounds indices (NULLIFY or DONT_CHECK).
+
+    Returns
+    -------
+    Table
+        New Table containing only matching rows.
+    """
+
+    from .interop import from_arrow
+
+    cdef object pa_arr = pa.array(keys)
+
+    cdef object pa_tbl  = pa.Table.from_arrays([pa_arr], ["_col"])
+    
+    cdef Column gather_map = from_arrow(pa_tbl).columns()[0]
+
+
+    with nogil:
+        cpp_copying.gather(
+            source_table.view(),
+            gather_map.view(),
+            bounds_policy
+        )
+
+
+
+
 
 
 cpdef Table scatter(
