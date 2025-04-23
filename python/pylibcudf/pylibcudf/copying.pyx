@@ -2,10 +2,17 @@
 
 from cython.operator import dereference
 
+from cpython.pycapsule cimport (
+    PyCapsule_GetPointer
+)
+
+
 from libcpp.functional cimport reference_wrapper
-from libcpp.memory cimport unique_ptr
+from libcpp.memory cimport unique_ptr, make_unique, shared_ptr
 from libcpp.utility cimport move
 from libcpp.vector cimport vector
+from libc.stdint cimport int64_t, uint64_t
+from libc.stdlib cimport malloc, free
 # TODO: We want to make cpp a more full-featured package so that we can access
 # directly from that. It will make namespacing much cleaner in pylibcudf. What
 # we really want here would be
@@ -36,8 +43,17 @@ from .table cimport Table
 from .utils cimport _as_vector
 
 
-from pyarrow import lib as pa             
 
+cimport pyarrow.lib as pa_lib
+
+from pylibcudf.libcudf.interop cimport ArrowArray, ArrowSchema, arrow_column
+
+
+from pylibcudf.arrow.arrow_helper cimport Int64Builder, Array, ExportArray
+
+from cpython.sequence cimport PySequence_Fast, PySequence_Fast_GET_ITEM
+from cpython.long cimport PyLong_AsLongLong
+from cpython.object cimport PyObject
 
 __all__ = [
     "MaskAllocationPolicy",
@@ -110,8 +126,6 @@ cpdef void multiget(
     ----------
     source_table : Table
         The input GPU table.
-    column_idx : int
-        Index of the column to match against.
     keys : list[int]
         List of integer keys to select.
     bounds_policy : OutOfBoundsPolicy
@@ -122,22 +136,67 @@ cpdef void multiget(
     Table
         New Table containing only matching rows.
     """
+    cdef Py_ssize_t size = len(keys)
+    cdef int64_t* c_keys = <int64_t*> malloc(size * sizeof(int64_t))
+    if c_keys == NULL:
+        raise MemoryError("Failed to allocate memory")
 
-    from .interop import from_arrow
+    for i in xrange(size):
+        c_keys[i] = <int64_t> keys[i]
 
-    cdef object pa_arr = pa.array(keys)
+    cdef object seq = PySequence_Fast(keys, "Expected a sequence")
+    cdef PyObject* item
 
-    cdef object pa_tbl  = pa.Table.from_arrays([pa_arr], ["_col"])
-    
-    cdef Column gather_map = from_arrow(pa_tbl).columns()[0]
+    cdef Int64Builder builder
+    cdef shared_ptr[Array] out_array
+    cdef ArrowSchema* c_schema = <ArrowSchema*>malloc(sizeof(ArrowSchema))
+    cdef ArrowArray* c_array = <ArrowArray*>malloc(sizeof(ArrowArray))
 
-
+    cdef unique_ptr[arrow_column] c_result
     with nogil:
+
+        builder.AppendValues(c_keys, size)
+        builder.Finish(&out_array)
+
+        ExportArray(
+            dereference(out_array),
+            c_array,
+            c_schema,
+        )
+
+        c_result = make_unique[arrow_column](
+            move(dereference(c_schema)), move(dereference(c_array))
+        )
         cpp_copying.gather(
             source_table.view(),
-            gather_map.view(),
+            c_result.get().view(),
             bounds_policy
         )
+    
+    
+
+
+    # cdef object pa_arr = pa.array(keys)
+    # schema, array = pa_arr.__arrow_c_array__()
+    # cdef ArrowSchema* c_schema = (
+    #     <ArrowSchema*>PyCapsule_GetPointer(schema, "arrow_schema")
+    # )
+    # cdef ArrowArray* c_array = (
+    #     <ArrowArray*>PyCapsule_GetPointer(array, "arrow_array")
+    # )
+
+
+    # cdef unique_ptr[arrow_column] c_result
+    # with nogil:
+
+    #     c_result = make_unique[arrow_column](
+    #             move(dereference(c_schema)), move(dereference(c_array))
+    #         )
+    #     cpp_copying.gather(
+    #         source_table.view(),
+    #         c_result.get().view(),
+    #         bounds_policy
+    #     )
 
 
 
