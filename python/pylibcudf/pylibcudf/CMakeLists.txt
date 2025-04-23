@@ -62,15 +62,39 @@ rapids_cython_create_modules(
   LINKED_LIBRARIES "${linked_libraries}" MODULE_PREFIX pylibcudf_ ASSOCIATED_TARGETS cudf
 )
 
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c
+    "import pyarrow as pa; print(pa.get_include())"
+  OUTPUT_VARIABLE PYARROW_CPP_INCLUDE
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+execute_process(
+  COMMAND ${Python3_EXECUTABLE}
+          -c "import numpy; print(numpy.get_include())"
+  OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+target_include_directories(pylibcudf_copying PUBLIC ${PYARROW_CPP_INCLUDE} ${NUMPY_INCLUDE_DIR})
+
+find_package(Arrow REQUIRED)
+
+
 include(${rapids-cmake-dir}/export/find_package_root.cmake)
 include(../../../cpp/cmake/thirdparty/get_nanoarrow.cmake)
 
-foreach(source interop _interop_helpers table column)
+foreach(source interop _interop_helpers table column copying)
   target_include_directories(pylibcudf_${source} PUBLIC "$<BUILD_INTERFACE:${DLPACK_INCLUDE_DIR}>")
   target_link_libraries(pylibcudf_${source} PUBLIC nanoarrow)
+  target_link_libraries(pylibcudf_${source} PUBLIC Arrow::arrow_shared)
+  
 endforeach()
 
 add_subdirectory(libcudf)
 add_subdirectory(strings)
 add_subdirectory(io)
 add_subdirectory(nvtext)
+add_subdirectory(arrow)

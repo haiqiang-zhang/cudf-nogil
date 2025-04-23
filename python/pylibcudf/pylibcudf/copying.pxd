@@ -38,7 +38,7 @@ cpdef Table gather(
     out_of_bounds_policy bounds_policy
 )
 
-cpdef void multiget(
+cpdef Table multiget(
     Table source_table,
     list keys,
     out_of_bounds_policy bounds_policy

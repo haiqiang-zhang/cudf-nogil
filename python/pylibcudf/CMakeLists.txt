@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright (c) 2023-2025, NVIDIA CORPORATION.
+# Copyright (c) 2022-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -12,89 +12,28 @@
 # the License.
 # =============================================================================
 
-set(cython_sources
-    aggregation.pyx
-    binaryop.pyx
-    column.pyx
-    column_factories.pyx
-    contiguous_split.pyx
-    concatenate.pyx
-    copying.pyx
-    datetime.pyx
-    experimental.pyx
-    expressions.pyx
-    filling.pyx
-    gpumemoryview.pyx
-    groupby.pyx
-    hashing.pyx
-    interop.pyx
-    _interop_helpers.pyx
-    jit.pyx
-    join.pyx
-    json.pyx
-    labeling.pyx
-    lists.pyx
-    merge.pyx
-    null_mask.pyx
-    partitioning.pyx
-    quantiles.pyx
-    reduce.pyx
-    replace.pyx
-    reshape.pyx
-    rolling.pyx
-    round.pyx
-    scalar.pyx
-    search.pyx
-    stream_compaction.pyx
-    sorting.pyx
-    table.pyx
-    traits.pyx
-    transform.pyx
-    transpose.pyx
-    types.pyx
-    unary.pyx
-    utils.pyx
-)
-set(linked_libraries cudf::cudf)
-rapids_cython_create_modules(
-  CXX
-  SOURCE_FILES "${cython_sources}"
-  LINKED_LIBRARIES "${linked_libraries}" MODULE_PREFIX pylibcudf_ ASSOCIATED_TARGETS cudf
+cmake_minimum_required(VERSION 3.30.4 FATAL_ERROR)
+
+include(../../cmake/rapids_config.cmake)
+include(rapids-cuda)
+rapids_cuda_init_architectures(pylibcudf)
+
+project(
+  pylibcudf
+  VERSION "${RAPIDS_VERSION}"
+  LANGUAGES CXX CUDA
 )
 
+find_package(cudf "${RAPIDS_VERSION}" REQUIRED)
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-execute_process(
-  COMMAND ${Python3_EXECUTABLE} -c
-    "import pyarrow as pa; print(pa.get_include())"
-  OUTPUT_VARIABLE PYARROW_CPP_INCLUDE
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# an installed version of libcudf doesn't provide the dlpack headers so we need to download dlpack
+# for the interop.pyx
+include(rapids-cpm)
+rapids_cpm_init()
+include(../../cpp/cmake/thirdparty/get_dlpack.cmake)
 
-execute_process(
-  COMMAND ${Python3_EXECUTABLE}
-          -c "import numpy; print(numpy.get_include())"
-  OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+include(rapids-cython-core)
 
-target_include_directories(pylibcudf_copying PUBLIC ${PYARROW_CPP_INCLUDE} ${NUMPY_INCLUDE_DIR})
+rapids_cython_init()
 
-find_package(Arrow REQUIRED)
-
-
-include(${rapids-cmake-dir}/export/find_package_root.cmake)
-include(../../../cpp/cmake/thirdparty/get_nanoarrow.cmake)
-
-foreach(source interop _interop_helpers table column copying)
-  target_include_directories(pylibcudf_${source} PUBLIC "$<BUILD_INTERFACE:${DLPACK_INCLUDE_DIR}>")
-  target_link_libraries(pylibcudf_${source} PUBLIC nanoarrow)
-  target_link_libraries(pylibcudf_${source} PUBLIC Arrow::arrow_shared)
-  
-endforeach()
-
-add_subdirectory(libcudf)
-add_subdirectory(strings)
-add_subdirectory(io)
-add_subdirectory(nvtext)
-add_subdirectory(arrow)
+add_subdirectory(pylibcudf)

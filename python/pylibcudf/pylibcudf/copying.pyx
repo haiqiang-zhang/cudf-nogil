@@ -51,9 +51,9 @@ from pylibcudf.libcudf.interop cimport ArrowArray, ArrowSchema, arrow_column
 
 from pylibcudf.arrow.arrow_helper cimport Int64Builder, Array, ExportArray
 
-from cpython.sequence cimport PySequence_Fast, PySequence_Fast_GET_ITEM
-from cpython.long cimport PyLong_AsLongLong
+from cpython.sequence cimport PySequence_Fast
 from cpython.object cimport PyObject
+from cython.parallel import prange
 
 __all__ = [
     "MaskAllocationPolicy",
@@ -113,7 +113,7 @@ cpdef Table gather(
     return Table.from_libcudf(move(c_result))
 
 
-cpdef void multiget(
+cpdef Table multiget(
     Table source_table,
     list keys,             
     out_of_bounds_policy bounds_policy
@@ -141,19 +141,21 @@ cpdef void multiget(
     if c_keys == NULL:
         raise MemoryError("Failed to allocate memory")
 
-    for i in xrange(size):
+    for i in range(size):
         c_keys[i] = <int64_t> keys[i]
 
-    cdef object seq = PySequence_Fast(keys, "Expected a sequence")
-    cdef PyObject* item
 
     cdef Int64Builder builder
     cdef shared_ptr[Array] out_array
-    cdef ArrowSchema* c_schema = <ArrowSchema*>malloc(sizeof(ArrowSchema))
-    cdef ArrowArray* c_array = <ArrowArray*>malloc(sizeof(ArrowArray))
-
-    cdef unique_ptr[arrow_column] c_result
+    cdef ArrowSchema* c_schema
+    cdef ArrowArray* c_array
+    cdef unique_ptr[arrow_column] c_column
+    cdef unique_ptr[table] c_result
+    
     with nogil:
+
+        c_schema = <ArrowSchema*>malloc(sizeof(ArrowSchema))
+        c_array = <ArrowArray*>malloc(sizeof(ArrowArray))
 
         builder.AppendValues(c_keys, size)
         builder.Finish(&out_array)
@@ -164,15 +166,20 @@ cpdef void multiget(
             c_schema,
         )
 
-        c_result = make_unique[arrow_column](
+        c_column = make_unique[arrow_column](
             move(dereference(c_schema)), move(dereference(c_array))
         )
-        cpp_copying.gather(
+        c_result = cpp_copying.gather(
             source_table.view(),
-            c_result.get().view(),
+            c_column.get().view(),
             bounds_policy
         )
-    
+
+        free(c_keys)
+        free(c_schema)
+        free(c_array)
+
+    return Table.from_libcudf(move(c_result))
     
 
 
