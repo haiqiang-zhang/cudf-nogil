@@ -40,7 +40,7 @@ cpdef Table gather(
 
 cpdef Table multiget(
     Table source_table,
-    list keys,
+    object keys,
     out_of_bounds_policy bounds_policy
 )
 

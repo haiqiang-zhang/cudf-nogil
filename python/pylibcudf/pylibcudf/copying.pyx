@@ -6,6 +6,14 @@ from cpython.pycapsule cimport (
     PyCapsule_GetPointer
 )
 
+from cpython.buffer cimport (
+    PyObject_GetBuffer,
+    PyBuffer_Release,
+    Py_buffer,
+    PyBUF_CONTIG_RO,
+    PyBUF_FORMAT,
+)
+
 
 from libcpp.functional cimport reference_wrapper
 from libcpp.memory cimport unique_ptr, make_unique, shared_ptr
@@ -115,12 +123,11 @@ cpdef Table gather(
 
 cpdef Table multiget(
     Table source_table,
-    list keys,             
+    object keys_obj,             
     out_of_bounds_policy bounds_policy
 ):
     """
-    GPU‐accelerated multi‐get by gathering rows whose values in
-    `column_idx` match any key in the Python `keys` list.
+    GPU‐accelerated multi‐get by gathering rows whose indices match any key in the Python `keys` list.
 
     Parameters
     ----------
@@ -136,13 +143,36 @@ cpdef Table multiget(
     Table
         New Table containing only matching rows.
     """
-    cdef Py_ssize_t size = len(keys)
-    cdef int64_t* c_keys = <int64_t*> malloc(size * sizeof(int64_t))
-    if c_keys == NULL:
-        raise MemoryError("Failed to allocate memory")
+    # cdef Py_ssize_t size = len(keys)
+    # cdef int64_t* c_keys = <int64_t*> malloc(size * sizeof(int64_t))
+    # if c_keys == NULL:
+    #     raise MemoryError("Failed to allocate memory")
 
-    for i in range(size):
-        c_keys[i] = <int64_t> keys[i]
+    # for i in range(size):
+    #     c_keys[i] = <int64_t> keys[i]
+
+
+    # cdef Int64Builder builder
+    # cdef shared_ptr[Array] out_array
+    # cdef ArrowSchema* c_schema
+    # cdef ArrowArray* c_array
+    # cdef unique_ptr[arrow_column] c_column
+    # cdef unique_ptr[table] c_result
+    cdef Py_ssize_t size
+    cdef Py_buffer view
+    cdef int64_t* c_keys
+
+    if PyObject_GetBuffer(keys_obj, &view,
+        PyBUF_CONTIG_RO | PyBUF_FORMAT) != 0:
+        raise TypeError("keys must support buffer protocol (e.g. numpy int64 array)")
+    if view.ndim != 1 or view.len != view.itemsize * view.shape[0]:
+        PyBuffer_Release(&view)
+        raise ValueError("keys must be a 1-D contiguous array")
+    if view.format not in (b"q", b"l"):
+        PyBuffer_Release(&view)
+        raise TypeError("keys must be 64-bit integers")
+    size = view.shape[0]
+    c_keys = <int64_t*>view.buf
 
 
     cdef Int64Builder builder
@@ -175,7 +205,6 @@ cpdef Table multiget(
             bounds_policy
         )
 
-        free(c_keys)
         free(c_schema)
         free(c_array)
 

@@ -24,7 +24,7 @@ def gather(
 def multiget(
     source_table: Table,
     column_idx: int,
-    keys: list[int],
+    keys: object,
     bounds_policy:OutOfBoundsPolicy
 ) -> Table: ...
 def scatter(
