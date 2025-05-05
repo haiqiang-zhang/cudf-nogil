@@ -38,11 +38,7 @@ cpdef Table gather(
     out_of_bounds_policy bounds_policy
 )
 
-cpdef Table multiget(
-    Table source_table,
-    object keys,
-    out_of_bounds_policy bounds_policy
-)
+
 
 cpdef Table scatter(TableOrListOfScalars source, Column scatter_map, Table target_table)
 

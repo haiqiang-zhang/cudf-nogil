@@ -49,6 +49,7 @@ from . import (
     transpose,
     types,
     unary,
+    batch_ops
 )
 from .column import Column
 from .gpumemoryview import gpumemoryview
@@ -102,4 +103,5 @@ __all__ = [
     "transpose",
     "types",
     "unary",
+    "batch_ops",
 ]

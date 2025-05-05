@@ -2,19 +2,6 @@
 
 from cython.operator import dereference
 
-from cpython.pycapsule cimport (
-    PyCapsule_GetPointer
-)
-
-from cpython.buffer cimport (
-    PyObject_GetBuffer,
-    PyBuffer_Release,
-    Py_buffer,
-    PyBUF_CONTIG_RO,
-    PyBUF_FORMAT,
-)
-
-
 from libcpp.functional cimport reference_wrapper
 from libcpp.memory cimport unique_ptr, make_unique, shared_ptr
 from libcpp.utility cimport move
@@ -50,19 +37,6 @@ from .scalar cimport Scalar
 from .table cimport Table
 from .utils cimport _as_vector
 
-
-
-cimport pyarrow.lib as pa_lib
-
-from pylibcudf.libcudf.interop cimport ArrowArray, ArrowSchema, arrow_column
-
-
-from pylibcudf.arrow.arrow_helper cimport Int64Builder, Array, ExportArray
-
-from cpython.sequence cimport PySequence_Fast
-from cpython.object cimport PyObject
-from cython.parallel import prange
-
 __all__ = [
     "MaskAllocationPolicy",
     "OutOfBoundsPolicy",
@@ -73,7 +47,6 @@ __all__ = [
     "copy_range_in_place",
     "empty_like",
     "gather",
-    "multiget",
     "get_element",
     "scatter",
     "shift",
@@ -119,123 +92,6 @@ cpdef Table gather(
         )
 
     return Table.from_libcudf(move(c_result))
-
-
-cpdef Table multiget(
-    Table source_table,
-    object keys_obj,             
-    out_of_bounds_policy bounds_policy
-):
-    """
-    GPU‐accelerated multi‐get by gathering rows whose indices match any key in the Python `keys` list.
-
-    Parameters
-    ----------
-    source_table : Table
-        The input GPU table.
-    keys : list[int]
-        List of integer keys to select.
-    bounds_policy : OutOfBoundsPolicy
-        Policy for out‐of‐bounds indices (NULLIFY or DONT_CHECK).
-
-    Returns
-    -------
-    Table
-        New Table containing only matching rows.
-    """
-    # cdef Py_ssize_t size = len(keys)
-    # cdef int64_t* c_keys = <int64_t*> malloc(size * sizeof(int64_t))
-    # if c_keys == NULL:
-    #     raise MemoryError("Failed to allocate memory")
-
-    # for i in range(size):
-    #     c_keys[i] = <int64_t> keys[i]
-
-
-    # cdef Int64Builder builder
-    # cdef shared_ptr[Array] out_array
-    # cdef ArrowSchema* c_schema
-    # cdef ArrowArray* c_array
-    # cdef unique_ptr[arrow_column] c_column
-    # cdef unique_ptr[table] c_result
-    cdef Py_ssize_t size
-    cdef Py_buffer view
-    cdef int64_t* c_keys
-
-    if PyObject_GetBuffer(keys_obj, &view,
-        PyBUF_CONTIG_RO | PyBUF_FORMAT) != 0:
-        raise TypeError("keys must support buffer protocol (e.g. numpy int64 array)")
-    if view.ndim != 1 or view.len != view.itemsize * view.shape[0]:
-        PyBuffer_Release(&view)
-        raise ValueError("keys must be a 1-D contiguous array")
-    if view.format not in (b"q", b"l"):
-        PyBuffer_Release(&view)
-        raise TypeError("keys must be 64-bit integers")
-    size = view.shape[0]
-    c_keys = <int64_t*>view.buf
-
-
-    cdef Int64Builder builder
-    cdef shared_ptr[Array] out_array
-    cdef ArrowSchema* c_schema
-    cdef ArrowArray* c_array
-    cdef unique_ptr[arrow_column] c_column
-    cdef unique_ptr[table] c_result
-    
-    with nogil:
-
-        c_schema = <ArrowSchema*>malloc(sizeof(ArrowSchema))
-        c_array = <ArrowArray*>malloc(sizeof(ArrowArray))
-
-        builder.AppendValues(c_keys, size)
-        builder.Finish(&out_array)
-
-        ExportArray(
-            dereference(out_array),
-            c_array,
-            c_schema,
-        )
-
-        c_column = make_unique[arrow_column](
-            move(dereference(c_schema)), move(dereference(c_array))
-        )
-        c_result = cpp_copying.gather(
-            source_table.view(),
-            c_column.get().view(),
-            bounds_policy
-        )
-
-        free(c_schema)
-        free(c_array)
-
-    return Table.from_libcudf(move(c_result))
-    
-
-
-    # cdef object pa_arr = pa.array(keys)
-    # schema, array = pa_arr.__arrow_c_array__()
-    # cdef ArrowSchema* c_schema = (
-    #     <ArrowSchema*>PyCapsule_GetPointer(schema, "arrow_schema")
-    # )
-    # cdef ArrowArray* c_array = (
-    #     <ArrowArray*>PyCapsule_GetPointer(array, "arrow_array")
-    # )
-
-
-    # cdef unique_ptr[arrow_column] c_result
-    # with nogil:
-
-    #     c_result = make_unique[arrow_column](
-    #             move(dereference(c_schema)), move(dereference(c_array))
-    #         )
-    #     cpp_copying.gather(
-    #         source_table.view(),
-    #         c_result.get().view(),
-    #         bounds_policy
-    #     )
-
-
-
 
 
 

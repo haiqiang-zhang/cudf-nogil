@@ -54,6 +54,7 @@ set(cython_sources
     types.pyx
     unary.pyx
     utils.pyx
+    batch_ops.pyx
 )
 set(linked_libraries cudf::cudf)
 rapids_cython_create_modules(
@@ -80,13 +81,15 @@ execute_process(
 
 target_include_directories(pylibcudf_copying PUBLIC ${PYARROW_CPP_INCLUDE} ${NUMPY_INCLUDE_DIR})
 
+target_include_directories(pylibcudf_batch_ops PUBLIC ${PYARROW_CPP_INCLUDE} ${NUMPY_INCLUDE_DIR})
+
 find_package(Arrow REQUIRED)
 
 
 include(${rapids-cmake-dir}/export/find_package_root.cmake)
 include(../../../cpp/cmake/thirdparty/get_nanoarrow.cmake)
 
-foreach(source interop _interop_helpers table column copying)
+foreach(source interop _interop_helpers table column copying batch_ops)
   target_include_directories(pylibcudf_${source} PUBLIC "$<BUILD_INTERFACE:${DLPACK_INCLUDE_DIR}>")
   target_link_libraries(pylibcudf_${source} PUBLIC nanoarrow)
   target_link_libraries(pylibcudf_${source} PUBLIC Arrow::arrow_shared)

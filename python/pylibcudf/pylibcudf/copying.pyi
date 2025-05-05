@@ -21,12 +21,6 @@ ColumnOrTable = TypeVar("ColumnOrTable", Column, Table)
 def gather(
     source_table: Table, gather_map: Column, bounds_policy: OutOfBoundsPolicy
 ) -> Table: ...
-def multiget(
-    source_table: Table,
-    column_idx: int,
-    keys: object,
-    bounds_policy:OutOfBoundsPolicy
-) -> Table: ...
 def scatter(
     source: Table | list[Scalar], scatter_map: Column, target_table: Table
 ) -> Table: ...

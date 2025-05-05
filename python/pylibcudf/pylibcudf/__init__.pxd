@@ -39,6 +39,7 @@ from . cimport (
     transpose,
     types,
     unary,
+    batch_ops,
 )
 from .column cimport Column
 from .gpumemoryview cimport gpumemoryview
@@ -90,4 +91,5 @@ __all__ = [
     "types",
     "unary",
     "nvtext",
+    "batch_ops",
 ]
